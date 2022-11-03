@@ -10,6 +10,7 @@ const session = require('express-session');
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const FacebookStrategy = require('passport-facebook').Strategy;
 const findOrCreate = require('mongoose-findorcreate');
 
 const app = express();
@@ -39,7 +40,8 @@ const userSchema = new mongoose.Schema(
   {
     email : String,
     password : String,
-    googleId : String
+    googleId : String,
+    facebookId: String
   });
 
   userSchema.plugin(passportLocalMongoose);
@@ -50,7 +52,7 @@ const userSchema = new mongoose.Schema(
   passport.use(User.createStrategy());
 
   // use static serialize and deserialize of model for passport session support
-    passport.serializeUser((user, cb) =>{
+  passport.serializeUser((user, cb) =>{
     process.nextTick(() =>{
       return cb(null, {
         id: user.id,
@@ -77,6 +79,7 @@ const userSchema = new mongoose.Schema(
   //   })
   // });
 
+  //My google strategy
 
   passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
@@ -92,14 +95,38 @@ const userSchema = new mongoose.Schema(
   }
 ));
 
+
+//My facbook strategy
+passport.use(new FacebookStrategy({
+  clientID: process.env.APP_ID,
+  clientSecret: process.env.SECRET_KEY,
+  callbackURL: "http://localhost:3000/auth/facebook/secrets"
+}, (accessToken, refreshToken, profile, cb) =>{
+  console.log( profile );
+  User.findOrCreate({ facebookId: profile.id }, (err, user) =>{
+    return cb(err, user);
+  });
+}
+));
+
 // TODO:
 
 app.get('/', (req, res) =>{
   res.render('home');
 });
 
+app.get('/auth/facebook',
+passport.authenticate('facebook', {  authType: 'reauthenticate', scope: ['email']}));
+
+app.get('/auth/facebook/secrets',
+passport.authenticate('facebook', { failureRedirect: '/login' }),
+(req, res) =>{
+  // Successful authentication, redirect home.
+  res.redirect('/secrets');
+});
+
 app.get('/auth/google',
-passport.authenticate('google', { scope: ['profile'] })
+passport.authenticate('google', { authType: 'reauthenticate', scope: ['profile'] })
 );
 
 app.get('/auth/google/secrets',
